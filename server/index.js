@@ -21,7 +21,6 @@ app.post('/api/auth/register', (req, res) => {
   if (!name || !email || !password) return res.status(400).json({ error: 'Missing fields' });
 
   const uid = 'user_' + Date.now(); 
-  // UPDATED: Added placeholders for phone and address in case needed later, or default NULL
   const sql = `INSERT INTO users (uid, email, password, displayName, role) VALUES (?, ?, ?, ?, ?)`;
   
   db.run(sql, [uid, email, password, name, 'customer'], function(err) {
@@ -37,7 +36,6 @@ app.post('/api/auth/register', (req, res) => {
 
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
-  // UPDATED: Select phone and address
   const sql = `SELECT id, uid, email, displayName, role, phone, address FROM users WHERE email = ? AND password = ?`;
   
   db.get(sql, [email, password], (err, row) => {
@@ -55,7 +53,6 @@ app.get('/api/users', (req, res) => {
     });
 });
 
-// MANUALLY ADDED: Promote user to Admin via browser URL
 app.get('/api/promote/:email', (req, res) => {
     const email = req.params.email;
     const sql = "UPDATE users SET role = 'admin' WHERE email = ?";
@@ -71,13 +68,11 @@ app.get('/api/promote/:email', (req, res) => {
     });
 });
 
-// NEW: Update User Profile
 app.put('/api/users/:id', (req, res) => {
     const { displayName, phone, address } = req.body;
     const sql = `UPDATE users SET displayName = ?, phone = ?, address = ? WHERE id = ?`;
     db.run(sql, [displayName, phone, address, req.params.id], function(err) {
         if (err) return res.status(500).json({ error: err.message });
-        // Return updated user data
         db.get("SELECT id, uid, email, displayName, role, phone, address FROM users WHERE id = ?", [req.params.id], (err, row) => {
             res.json({ message: "Profile updated", user: row });
         });
@@ -91,8 +86,7 @@ app.delete('/api/users/:id', (req, res) => {
     });
 });
 
-// --- USER FAVORITES ROUTES (NEW) ---
-// Get user's favorites
+// --- USER FAVORITES ROUTES ---
 app.get('/api/favorites/:user_email', (req, res) => {
     const { user_email } = req.params;
     const sql = `
@@ -106,7 +100,6 @@ app.get('/api/favorites/:user_email', (req, res) => {
     });
 });
 
-// Add a product to favorites
 app.post('/api/favorites', (req, res) => {
     const { user_email, product_id } = req.body;
     const sql = `INSERT OR IGNORE INTO user_favorites (user_email, product_id) VALUES (?, ?)`;
@@ -116,7 +109,6 @@ app.post('/api/favorites', (req, res) => {
     });
 });
 
-// Remove a product from favorites
 app.delete('/api/favorites', (req, res) => {
     const { user_email, product_id } = req.body;
     const sql = `DELETE FROM user_favorites WHERE user_email = ? AND product_id = ?`;
@@ -126,7 +118,6 @@ app.delete('/api/favorites', (req, res) => {
     });
 });
 
-// Sync/Replace all favorites for a user (Used for guest migration or full sync)
 app.post('/api/favorites/sync', (req, res) => {
     const { user_email, product_ids } = req.body;
     if (!user_email || !Array.isArray(product_ids)) {
@@ -135,15 +126,11 @@ app.post('/api/favorites/sync', (req, res) => {
 
     db.serialize(() => {
         db.run('BEGIN TRANSACTION;'); 
-
-        // 1. Delete all existing favorites for the user
         db.run('DELETE FROM user_favorites WHERE user_email = ?', [user_email], (err) => {
             if (err) {
                 db.run('ROLLBACK;');
-                return res.status(500).json({ error: 'Failed to clear old favorites: ' + err.message });
+                return res.status(500).json({ error: 'Failed to clear old favorites' });
             }
-
-            // 2. Insert new favorites
             const stmt = db.prepare('INSERT OR IGNORE INTO user_favorites (user_email, product_id) VALUES (?, ?)');
             for (const productId of product_ids) {
                 stmt.run(user_email, productId);
@@ -151,16 +138,97 @@ app.post('/api/favorites/sync', (req, res) => {
             stmt.finalize((err) => {
                 if (err) {
                     db.run('ROLLBACK;');
-                    return res.status(500).json({ error: 'Failed to insert new favorites: ' + err.message });
+                    return res.status(500).json({ error: 'Failed to insert new favorites' });
                 }
-                
-                // 3. Commit transaction
                 db.run('COMMIT;', (err) => {
-                    if (err) return res.status(500).json({ error: 'Transaction commit failed: ' + err.message });
-                    res.json({ message: `Successfully synced ${product_ids.length} favorites.` });
+                    if (err) return res.status(500).json({ error: 'Transaction commit failed' });
+                    res.json({ message: `Synced favorites.` });
                 });
             });
         });
+    });
+});
+
+// --- NEW: USER CART ROUTES ---
+
+// Get Cart
+app.get('/api/cart/:user_email', (req, res) => {
+    const { user_email } = req.params;
+    // Join with products to get details like name, price, image
+    const sql = `
+        SELECT p.*, uc.quantity 
+        FROM user_cart_items uc 
+        JOIN products p ON uc.product_id = p.id 
+        WHERE uc.user_email = ?
+    `;
+    db.all(sql, [user_email], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ data: rows });
+    });
+});
+
+// Add/Update Item in Cart (Upsert)
+app.post('/api/cart', (req, res) => {
+    const { user_email, product_id, quantity } = req.body;
+    // SQLite upsert syntax: INSERT OR REPLACE
+    const sql = `INSERT OR REPLACE INTO user_cart_items (user_email, product_id, quantity) VALUES (?, ?, ?)`;
+    
+    db.run(sql, [user_email, product_id, quantity], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: "Cart updated", changes: this.changes });
+    });
+});
+
+// Remove Item from Cart
+app.delete('/api/cart', (req, res) => {
+    const { user_email, product_id } = req.body;
+    const sql = `DELETE FROM user_cart_items WHERE user_email = ? AND product_id = ?`;
+    db.run(sql, [user_email, product_id], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ message: "Item removed from cart", changes: this.changes });
+    });
+});
+
+// Merge Guest Cart on Login
+app.post('/api/cart/merge', (req, res) => {
+    const { user_email, items } = req.body; // items = [{product_id, quantity}, ...]
+    if (!user_email || !Array.isArray(items)) return res.status(400).json({ error: "Invalid data" });
+
+    db.serialize(() => {
+        db.run('BEGIN TRANSACTION;');
+        const stmt = db.prepare(`
+            INSERT INTO user_cart_items (user_email, product_id, quantity) 
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_email, product_id) 
+            DO UPDATE SET quantity = quantity + excluded.quantity
+        `);
+
+        for (const item of items) {
+             // Basic validation
+             if(item.id && item.quantity) {
+                 stmt.run(user_email, item.id, item.quantity);
+             }
+        }
+
+        stmt.finalize((err) => {
+            if (err) {
+                db.run('ROLLBACK;');
+                return res.status(500).json({ error: "Failed to merge cart" });
+            }
+            db.run('COMMIT;', (err) => {
+                if (err) return res.status(500).json({ error: "Commit failed" });
+                res.json({ message: "Cart merged successfully" });
+            });
+        });
+    });
+});
+
+// Clear Cart (e.g., after checkout)
+app.post('/api/cart/clear', (req, res) => {
+    const { user_email } = req.body;
+    db.run("DELETE FROM user_cart_items WHERE user_email = ?", [user_email], function(err) {
+         if (err) return res.status(500).json({ error: err.message });
+         res.json({ message: "Cart cleared" });
     });
 });
 
@@ -248,8 +316,6 @@ app.put('/api/products/:id', (req, res) => {
 });
 
 // --- ORDERS ---
-
-// Admin: Get ALL Orders
 app.get('/api/orders', (req, res) => {
     db.all("SELECT * FROM orders ORDER BY createdAt DESC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -257,7 +323,6 @@ app.get('/api/orders', (req, res) => {
     });
 });
 
-// User Profile - Get MY Orders
 app.get('/api/orders/user/:email', (req, res) => {
     db.all("SELECT * FROM orders WHERE user_email = ? ORDER BY createdAt DESC", [req.params.email], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -276,7 +341,6 @@ app.post('/api/orders', (req, res) => {
     );
 });
 
-// Admin Update Status
 app.put('/api/orders/:id', (req, res) => {
     const { status } = req.body;
     db.run("UPDATE orders SET status = ? WHERE id = ?", [status, req.params.id], function(err) {
@@ -285,7 +349,6 @@ app.put('/api/orders/:id', (req, res) => {
     });
 });
 
-// NEW: User Cancel Order
 app.put('/api/orders/:id/cancel', (req, res) => {
     db.run("UPDATE orders SET status = 'Cancelled' WHERE id = ? AND status = 'Pending'", [req.params.id], function(err) {
         if (err) return res.status(500).json({ error: err.message });

@@ -68,17 +68,11 @@ export default function Navbar() {
   };
 
   // --- DYNAMIC COLOR LOGIC ---
-  // If Over Footer OR At Top: Text is White
-  // If Scrolled (Middle of page): Text is Black
   const textColor = (isFooterOverlap || !showWhiteNav) ? 'text-white drop-shadow-sm' : 'text-gray-900';
-  
-  // "Joy" Text Color logic
   const brandColor = (isFooterOverlap || !showWhiteNav) ? 'text-white' : 'text-primary';
-
   const hoverColor = showWhiteNav ? 'hover:text-primary' : 'hover:text-white/80';
   const iconColor = (isFooterOverlap || !showWhiteNav) ? 'text-white' : 'text-gray-600';
   
-  // Search Bar logic
   const searchBg = (showWhiteNav && !isFooterOverlap) 
     ? 'bg-gray-100 focus-within:bg-white border-transparent focus-within:border-primary/50' 
     : 'bg-white/20 text-white placeholder-white/70 focus-within:bg-white/30 border-transparent';
@@ -110,7 +104,8 @@ export default function Navbar() {
             {[
               { label: 'Home', path: '/' },
               { label: 'Shop', path: '/shop' },
-              { label: 'Trending', path: '/shop?category=trending' },
+              /* --- FIXED: Point directly to /trending route instead of using a category query --- */
+              { label: 'Trending', path: '/trending' },
               { label: 'New Arrivals', path: '/new-arrivals' }
             ].map((item) => {
               const isActive = location.pathname === item.path;
@@ -130,7 +125,6 @@ export default function Navbar() {
           {/* Search Bar (Desktop) */}
           <div className="hidden md:block flex-1 max-w-xs mx-4">
              <form onSubmit={handleSearch} className={`relative rounded-full transition-all border ${searchBg}`}>
-               {/* MODIFIED INPUT CLASS: Sets both text color and placeholder color dynamically */}
                 <input 
                   type="text" 
                   placeholder="Search toys..." 
@@ -225,6 +219,7 @@ export default function Navbar() {
 
           <Link to="/" className="block px-3 py-2 rounded-lg text-base font-medium text-gray-900 hover:bg-primary-light/50 hover:text-primary">Home</Link>
           <Link to="/shop" className="block px-3 py-2 rounded-lg text-base font-medium text-gray-900 hover:bg-primary-light/50 hover:text-primary">Shop</Link>
+          <Link to="/trending" className="block px-3 py-2 rounded-lg text-base font-medium text-gray-900 hover:bg-primary-light/50 hover:text-primary">Trending</Link>
           <Link to="/new-arrivals" className="block px-3 py-2 rounded-lg text-base font-medium text-gray-900 hover:bg-primary-light/50 hover:text-primary">New Arrivals</Link>
           <Link to="/favorites" className="block px-3 py-2 rounded-lg text-base font-medium text-gray-900 hover:bg-primary-light/50 hover:text-primary">Favorites ({wishlist.length})</Link>
           

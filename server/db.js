@@ -67,7 +67,7 @@ function initializeDatabase() {
       )
     `);
 
-    // 4. NEW: User Favorites Table
+    // 4. User Favorites Table
     db.run(`
       CREATE TABLE IF NOT EXISTS user_favorites (
         user_email TEXT NOT NULL,
@@ -79,7 +79,20 @@ function initializeDatabase() {
       )
     `);
 
-    // 5. Metadata & Seeding
+    // 5. NEW: User Cart Table
+    db.run(`
+      CREATE TABLE IF NOT EXISTS user_cart_items (
+        user_email TEXT NOT NULL,
+        product_id INTEGER NOT NULL,
+        quantity INTEGER DEFAULT 1,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_email, product_id),
+        FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      )
+    `);
+
+    // 6. Metadata & Seeding
     db.run(`
       CREATE TABLE IF NOT EXISTS app_metadata (
         key TEXT PRIMARY KEY,

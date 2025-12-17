@@ -1,14 +1,25 @@
 // Filename: src/pages/shop/Cart.jsx
 import { Link, useNavigate } from 'react-router-dom';
-import { Trash2, Plus, Minus, ArrowRight, ShoppingBag, ShieldCheck, UserCircle } from 'lucide-react';
+import { Trash2, Plus, Minus, ArrowRight, ShoppingBag, ShieldCheck, UserCircle, Loader } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
 
 export default function Cart() {
-  const { cartItems, removeFromCart, updateQuantity, getCartTotal } = useCart();
+  const { cartItems, removeFromCart, updateQuantity, getCartTotal, cartLoading } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // 1. Loading State
+  if (cartLoading) {
+      return (
+        <div className="min-h-[80vh] flex flex-col items-center justify-center text-center px-4 bg-gray-50 pt-20">
+            <Loader className="w-12 h-12 text-indigo-600 animate-spin mb-4" />
+            <p className="text-gray-500 font-medium">Syncing your cart...</p>
+        </div>
+      );
+  }
+
+  // 2. Empty State
   if (!cartItems || cartItems.length === 0) {
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center text-center px-4 bg-gray-50 pt-20">
@@ -60,7 +71,6 @@ export default function Cart() {
                   <div className="flex-1 text-center sm:text-left">
                     <h3 className="text-lg font-bold text-gray-900">{item.name}</h3>
                     <p className="text-gray-500 text-sm">{item.category}</p>
-                    {/* CHANGED: $ -> ₹ */}
                     <p className="text-indigo-600 font-bold mt-1 sm:hidden">₹{(price * (item.quantity || 1)).toFixed(2)}</p>
                   </div>
                   <div className="flex items-center bg-gray-50 rounded-xl border border-gray-200">
@@ -69,7 +79,6 @@ export default function Cart() {
                       <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="p-2 hover:text-indigo-600"><Plus className="w-4 h-4"/></button>
                   </div>
                   <div className="hidden sm:block text-right min-w-[5rem]">
-                    {/* CHANGED: $ -> ₹ */}
                     <p className="font-bold text-lg">₹{(price * (item.quantity || 1)).toFixed(2)}</p>
                   </div>
                   <button onClick={() => removeFromCart(item.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition"><Trash2 className="w-5 h-5" /></button>
@@ -83,10 +92,8 @@ export default function Cart() {
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 sticky top-28">
               <h2 className="text-xl font-bold text-gray-900 mb-6">Order Summary</h2>
               <div className="space-y-4 mb-8 border-b border-gray-100 pb-8">
-                {/* CHANGED: $ -> ₹ */}
                 <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>₹{getCartTotal().toFixed(2)}</span></div>
                 <div className="flex justify-between text-gray-500"><span>Shipping</span><span className="text-green-500 font-bold">Free</span></div>
-                {/* CHANGED: $ -> ₹ */}
                 <div className="flex justify-between text-gray-900 font-bold text-lg"><span>Total</span><span>₹{getCartTotal().toFixed(2)}</span></div>
               </div>
               
